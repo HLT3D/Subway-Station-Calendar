@@ -1,0 +1,192 @@
+#Hudson Truelove 2024
+
+import requests
+from ics import Calendar
+from datetime import datetime, timezone
+import tkinter as tk
+import random
+
+#text inside the circles used later
+circlea = ["A", "D", "E"]
+circleb = [1, 2, 7]
+circlec = [3, 4, 6]
+circled = ["B", "C", "F"]
+circlee = [5, 8, 9]
+
+# Use the provided ICAL URL
+ICAL_URL = "!!CALENDAR ICS/ICAL LINK HERE!!"
+REFRESH_INTERVAL = (
+    10000  # Refresh interval in milliseconds (e.g., 60000 ms = 60 seconds)
+  #this number may need to be higher for slower internet connections
+)
+
+
+def fetch_calendar(url):
+    """Fetch the iCal data from the given URL."""
+    response = requests.get(url)
+    response.raise_for_status()  # Raise an error if the request failed
+    return response.text
+
+
+def get_next_event(ical_data):
+    """Parse the iCal data and find the next event."""
+    calendar = Calendar(ical_data)
+    now = datetime.now(timezone.utc)  # Make 'now' timezone-aware in UTC
+
+    # Filter future events and sort them
+    future_events = sorted(
+        (event for event in calendar.events if event.begin.datetime > now),
+        key=lambda e: e.begin,
+    )
+
+    if not future_events:
+        return "No upcoming events found." #tells user no upcoming events
+
+    next_event = future_events[0]
+    return f"Next stop: {next_event.name} at {next_event.begin}"
+  #shows next event and time(which will be in utc so keep that in mind)
+
+
+def create_circle(canvas, x, y, r, color, text):
+    """Draws a colored circle with text inside it on a given canvas."""
+    canvas.create_oval(x - r, y - r, x + r, y + r, fill=color, outline=color)
+    canvas.create_text(x, y, text=text, font=("Helvetica", 30, "bold"), fill="white")
+
+
+def create_subway_sign(root, event_info):
+    """Set up the subway sign in the Tkinter window."""
+    root.title("NYC Subway Style Sign")
+    root.configure(bg="black")
+
+    # Define dimensions for a 1080p screen
+    window_width = 1920
+    window_height = 1080
+
+    # Set up the main window size
+    root.geometry(f"{window_width}x{window_height}")
+
+    # Create a frame for the subway sign
+    frame = tk.Frame(root, bg="black")
+    frame.pack(side="left", anchor="nw", padx=20, pady=20)  # Align frame to the left
+
+    # Create a frame for the event label
+    event_frame = tk.Frame(frame, bg="black")
+    event_frame.pack(pady=(0, 20))  # Add space below the event label frame
+
+    # Add station name
+    station_name = tk.Label(
+        event_frame,
+        text="Olympia Dr.\nRaleigh St.", #change this to whatever you want
+        font=("Helvetica", 60, "bold"),
+        fg="white",
+        bg="black",
+        anchor="w",
+    )
+    station_name.pack(pady=(0, 40), anchor="w")  # Add padding to the bottom
+
+    # Add the next event info
+    event_label = tk.Label(
+        event_frame,
+        text=event_info,
+        font=("Helvetica", 40, "bold"),
+        fg="white",
+        bg="black",
+        anchor="w",
+    )
+    event_label.pack(pady=(30, 0), anchor="w")  # Add padding to the bottom
+
+    # Create a frame for the circles
+    circle_frame = tk.Frame(frame, bg="black")
+    circle_frame.pack()
+
+    # Create a canvas for the circles (subway lines)
+    canvas = tk.Canvas(
+        circle_frame, width=1600, height=200, bg="black", highlightthickness=0
+    )
+    canvas.pack()
+
+    # Create subway line circles and text
+    circle_data = [
+        {
+            "x": 150,
+            "y": 100,
+            "r": 60,
+            "color": "#0033A0",
+            "text": random.choice(circlea),
+        },  # Blue Circle
+        {
+            "x": 350,
+            "y": 100,
+            "r": 60,
+            "color": "#EE352E",
+            "text": random.choice(circleb),
+        },  # Red Circle
+        {
+            "x": 550,
+            "y": 100,
+            "r": 60,
+            "color": "#6CBE45",
+            "text": random.choice(circlec),
+        },  # Green Circle
+        {
+            "x": 750,
+            "y": 100,
+            "r": 60,
+            "color": "#FF6319",
+            "text": random.choice(circled),
+        },  # Orange Circle
+        {
+            "x": 950,
+            "y": 100,
+            "r": 60,
+            "color": "#B933AD",
+            "text": random.choice(circlee),
+        },  # Purple Circle
+    ]
+
+    for circle in circle_data:
+        create_circle(
+            canvas,
+            circle["x"],
+            circle["y"],
+            circle["r"],
+            circle["color"],
+            circle["text"],
+        )
+
+    return event_label  # Return the event_label to update it later
+
+
+def refresh_event(event_label):
+    """Fetch new event data and update the event label."""
+    try:
+        ical_data = fetch_calendar(ICAL_URL)
+        next_event_info = get_next_event(ical_data)
+        event_label.config(text=next_event_info)  # Update the label text
+    except requests.RequestException as e:
+        event_label.config(text="Error fetching events.")
+
+    # Schedule the next update
+    root.after(REFRESH_INTERVAL, refresh_event, event_label)
+
+
+def main():
+    # Create the main application window
+    global root
+    root = tk.Tk()
+
+    # Initialize the event info
+    initial_event_info = "Loading..."
+    event_label = create_subway_sign(root, initial_event_info)
+
+    # Start the periodic refresh
+    refresh_event(event_label)
+
+    # Start the main loop
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()
+
+
